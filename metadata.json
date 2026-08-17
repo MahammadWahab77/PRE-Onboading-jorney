@@ -1,0 +1,6 @@
+{
+  "name": "NxtWave Onboarding Journey",
+  "description": "Guided post-registration onboarding journey with multilingual voice assistance, Salesforce verification, payment options, and slot booking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
