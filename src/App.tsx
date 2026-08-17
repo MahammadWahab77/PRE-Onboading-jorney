@@ -8,8 +8,8 @@ import { FullPaymentPage } from './pages/FullPaymentPage';
 import { NoCostEmiPage } from './pages/NoCostEmiPage';
 import { CoApplicantPage } from './pages/CoApplicantPage';
 import { DocumentsPage } from './pages/DocumentsPage';
-import { SlotBookingPage } from './pages/SlotBookingPage';
 import { KycPage } from './pages/KycPage';
+import { NbfcStatusPage } from './pages/NbfcStatusPage';
 
 const AppRoutes: React.FC = () => {
   const { currentRoute } = useOnboarding();
@@ -31,10 +31,10 @@ const AppRoutes: React.FC = () => {
         return <CoApplicantPage />;
       case '/onboarding/documents':
         return <DocumentsPage />;
-      case '/onboarding/slot-booking':
-        return <SlotBookingPage />;
       case '/onboarding/kyc':
         return <KycPage />;
+      case '/onboarding/nbfc-status':
+        return <NbfcStatusPage />;
       default:
         return <LoginPage />;
     }

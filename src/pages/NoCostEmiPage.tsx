@@ -1,13 +1,14 @@
 import React from 'react';
-import { ArrowRight, CheckCircle2, Calendar, RotateCcw, Percent, Users, FileText, HelpCircle, Sparkles } from 'lucide-react';
+import { ArrowRight, CheckCircle2, RotateCcw, Percent, Users, FileText, HelpCircle } from 'lucide-react';
 import { useOnboarding } from '../context/OnboardingContext';
 import { VoiceGuide } from '../components/VoiceGuide';
 import { JourneyProgress } from '../components/JourneyProgress';
+import { SUPPORT_WHATSAPP_URL } from '../constants';
 
 export const NoCostEmiPage: React.FC = () => {
   const { state, navigate } = useOnboarding();
 
-  const voiceMsg = "You selected No Cost EMI. To continue, you may need a co-applicant and a few documents like Aadhaar, PAN, and income or bank proof. If you have any questions, you can book a slot with our team for guidance.";
+  const voiceMsg = "You selected No Cost EMI. To continue, you may need a co-applicant and a few documents like Aadhaar, PAN, and income or bank proof. If you have any questions, you can contact our support team for guidance.";
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 text-[#2D3A3A] select-none">
@@ -121,16 +122,18 @@ export const NoCostEmiPage: React.FC = () => {
                 <h3 className="text-lg font-bold text-[#0B4A99]">Need Guidance?</h3>
               </div>
               <p className="text-xs sm:text-sm text-[#5D5852] mb-4 leading-relaxed">
-                Confused about EMI or not sure which documents to upload? Book a 1-to-1 assistance slot with our team.
+                Confused about EMI or not sure which documents to upload? Reach out to our support team for 1-to-1 guidance.
               </p>
             </div>
-            <button
-              onClick={() => navigate('/onboarding/slot-booking?source=no-cost-emi-help')}
+            <a
+              href={SUPPORT_WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-full py-2.5 px-4 bg-white border-2 border-[#0B4A99] hover:bg-[#0B4A99] hover:text-white text-[#0B4A99] rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
             >
-              <Calendar className="w-4 h-4 shrink-0" />
-              <span>Book Slot for Assistance</span>
-            </button>
+              <HelpCircle className="w-4 h-4 shrink-0" />
+              <span>Contact Support</span>
+            </a>
           </div>
         </div>
 
@@ -144,13 +147,15 @@ export const NoCostEmiPage: React.FC = () => {
             <ArrowRight className="w-5 h-5" />
           </button>
 
-          <button
-            onClick={() => navigate('/onboarding/slot-booking?source=no-cost-emi-help')}
+          <a
+            href={SUPPORT_WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             className="w-full py-3.5 bg-white border-2 border-[#0B4A99] text-[#0B4A99] hover:bg-blue-50 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
-            <Calendar className="w-4 h-4" />
-            <span>Not Sure? Book Slot for Assistance</span>
-          </button>
+            <HelpCircle className="w-4 h-4" />
+            <span>Not Sure? Contact Support</span>
+          </a>
 
           <button
             onClick={() => navigate('/onboarding/payment-options')}

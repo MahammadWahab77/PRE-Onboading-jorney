@@ -1,13 +1,13 @@
 import React from 'react';
-import { CheckCircle2, Trophy, ArrowRight, ShieldCheck, Languages, CreditCard, FileCheck, CalendarCheck, UserCheck } from 'lucide-react';
+import { CheckCircle2, Trophy, ArrowRight, ShieldCheck, Languages, CreditCard, Users, ClipboardCheck, UserCheck } from 'lucide-react';
 import { useOnboarding } from '../context/OnboardingContext';
 
 const LEVEL_DATA = [
   { level: 1, label: 'Identity Verified', icon: ShieldCheck, desc: 'Salesforce verification' },
   { level: 2, label: 'Language Selected', icon: Languages, desc: 'Voice assistant language' },
   { level: 3, label: 'Payment Choice', icon: CreditCard, desc: 'Selected payment path' },
-  { level: 4, label: 'Path Started', icon: FileCheck, desc: 'Co-applicant & Docs' },
-  { level: 5, label: 'Slot Booked', icon: CalendarCheck, desc: 'Assistance scheduled' },
+  { level: 4, label: 'Co-Applicant Added', icon: Users, desc: 'Co-applicant details submitted' },
+  { level: 5, label: 'Documents Verified', icon: ClipboardCheck, desc: 'All required docs uploaded' },
   { level: 6, label: 'KYC Completion', icon: UserCheck, desc: 'Final status checklist' },
 ];
 
