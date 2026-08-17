@@ -35,14 +35,6 @@ export interface DocumentUploadItem {
   fileName?: string;
 }
 
-export interface BookedSlot {
-  id: string;
-  source: string;
-  date: string;
-  time: string;
-  bookedAt: string;
-}
-
 export interface OnboardingState {
   salesforceId: string;
   name: string;
@@ -54,9 +46,8 @@ export interface OnboardingState {
   coApplicantDetails: CoApplicantDetails | null;
   documentsStatus: StepStatus;
   uploadedDocuments: Record<string, string>; // key -> url
-  slotStatus: 'NOT_BOOKED' | 'BOOKED';
-  bookedSlot: BookedSlot | null;
   kycStatus: KycStatus;
+  nbfcStatusViewed: boolean;
   currentLevel: number; // 1 to 6
   mutedVoice: boolean;
 }

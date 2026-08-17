@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Users, User, Phone, Mail, Briefcase, Banknote, MapPin, ArrowRight, Calendar, AlertCircle, CheckCircle2, HelpCircle } from 'lucide-react';
+import { Users, User, Briefcase, MapPin, ArrowRight, AlertCircle, CheckCircle2, HelpCircle } from 'lucide-react';
 import { useOnboarding } from '../context/OnboardingContext';
 import { VoiceGuide } from '../components/VoiceGuide';
 import { JourneyProgress } from '../components/JourneyProgress';
 import { CoApplicantDetails } from '../types/onboarding';
+import { SUPPORT_WHATSAPP_URL } from '../constants';
 
 const INDIAN_STATES = [
   'Andhra Pradesh', 'Telangana', 'Karnataka', 'Tamil Nadu', 'Maharashtra',
@@ -59,7 +60,7 @@ export const CoApplicantPage: React.FC = () => {
     if (success) {
       navigate('/onboarding/documents');
     } else {
-      setErrorMsg('Could not save details to server. Please verify network connection or book a slot.');
+      setErrorMsg('Could not save details to server. Please verify network connection or contact support.');
     }
   };
 
@@ -285,14 +286,15 @@ export const CoApplicantPage: React.FC = () => {
               )}
             </button>
 
-            <button
-              type="button"
-              onClick={() => navigate('/onboarding/slot-booking?source=no-cost-emi-help')}
+            <a
+              href={SUPPORT_WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               className="py-4 px-6 bg-white border-2 border-[#0B4A99] text-[#0B4A99] hover:bg-blue-50 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
             >
-              <Calendar className="w-4 h-4" />
-              <span>Book Slot for Help</span>
-            </button>
+              <HelpCircle className="w-4 h-4" />
+              <span>Contact Support</span>
+            </a>
           </div>
         </form>
       </div>

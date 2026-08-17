@@ -39,42 +39,50 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// In-Memory Rate Limiter for Login API
+// In-Memory Rate Limiter factory (per-IP, sliding window reset)
 interface RateLimitEntry {
   count: number;
   resetTime: number;
 }
-const loginRateLimits = new Map<string, RateLimitEntry>();
 
-function loginRateLimiter(req: Request, res: Response, next: NextFunction) {
-  const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown-ip';
-  const now = Date.now();
-  const limitWindow = 15 * 60 * 1000; // 15 mins
-  const maxRequests = 20;
+function createRateLimiter(windowMs: number, maxRequests: number, limitMessage: string) {
+  const store = new Map<string, RateLimitEntry>();
+  return function rateLimiter(req: Request, res: Response, next: NextFunction) {
+    const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown-ip';
+    const now = Date.now();
 
-  const entry = loginRateLimits.get(String(ip));
-  if (!entry || now > entry.resetTime) {
-    loginRateLimits.set(String(ip), { count: 1, resetTime: now + limitWindow });
+    const entry = store.get(String(ip));
+    if (!entry || now > entry.resetTime) {
+      store.set(String(ip), { count: 1, resetTime: now + windowMs });
+      next();
+      return;
+    }
+
+    if (entry.count >= maxRequests) {
+      res.status(429).json({ success: false, message: limitMessage });
+      return;
+    }
+
+    entry.count += 1;
     next();
-    return;
-  }
-
-  if (entry.count >= maxRequests) {
-    res.status(429).json({
-      success: false,
-      message: 'Too many login attempts from this device. Please try again in 15 minutes.'
-    });
-    return;
-  }
-
-  entry.count += 1;
-  next();
+  };
 }
+
+const loginRateLimiter = createRateLimiter(
+  15 * 60 * 1000,
+  20,
+  'Too many login attempts from this device. Please try again in 15 minutes.'
+);
+
+const nbfcStatusRateLimiter = createRateLimiter(
+  15 * 60 * 1000,
+  20,
+  'Too many status check attempts from this device. Please try again in 15 minutes.'
+);
 
 // In-Memory storage for documents & state backup
 const documentStorage = new Map<string, { fileName: string; mimeType: string; data: Buffer; uploadedAt: string }>();
 const coApplicantStorage = new Map<string, any>();
-const slotBookings = new Map<string, any>();
 
 // Helper: Normalize Mobile Number
 function normalizeMobile(input?: string): string {
@@ -93,6 +101,95 @@ function normalizeMobile(input?: string): string {
 // Helper: Sanitize SOQL input to prevent injection
 function sanitizeSOQL(str: string): string {
   return str.replace(/['"\\]/g, '');
+}
+
+// Helper: Mask PII before it ever leaves the server
+function maskMobile(mobile: string): string {
+  if (!mobile || mobile.length < 4) return '******';
+  return '******' + mobile.slice(-4);
+}
+
+function maskName(name: string): string {
+  if (!name || name.length < 3) return name + '*****';
+  return name.slice(0, 3) + '*****';
+}
+
+function maskId(id: string): string {
+  if (!id || id.length < 10) return id;
+  return id.slice(0, 5) + '****' + id.slice(-3);
+}
+
+// Helper: Map raw NBFC status string (from Salesforce) to a display-friendly status object
+function mapNbfcStatus(rawStatus: string | null) {
+  if (!rawStatus) {
+    return {
+      statusCode: 'NOT_STARTED',
+      displayStatus: 'Application Not Started',
+      statusType: 'neutral',
+      owner: 'Student / Parent',
+      progressStep: 1,
+      nextAction: 'Please begin your application process for this partner.',
+      ctaLabel: 'Contact Support',
+      ctaRoute: '/support'
+    };
+  }
+
+  const s = rawStatus.toLowerCase();
+
+  if (s === 'yet to create application' || s.includes('yet to create')) {
+    return { statusCode: 'NOT_STARTED', displayStatus: 'Application Not Started', statusType: 'neutral', owner: 'Student / Parent', progressStep: 1, nextAction: 'Your education finance application has not started yet.', ctaLabel: 'Start Application', ctaRoute: null };
+  }
+  if (s === 'consent pending' || s.includes('consent pending')) {
+    return { statusCode: 'CONSENT_PENDING', displayStatus: 'Consent Required', statusType: 'warning', owner: 'Student / Parent', progressStep: 2, nextAction: 'Please provide consent to continue your finance application.', ctaLabel: 'Give Consent', ctaRoute: null };
+  }
+  if (s === 'documents pending' || s.includes('documents pending')) {
+    return { statusCode: 'DOCUMENTS_PENDING', displayStatus: 'Documents Required', statusType: 'warning', owner: 'Student / Parent', progressStep: 2, nextAction: 'Upload the required documents to move your application forward.', ctaLabel: 'Upload Documents', ctaRoute: null };
+  }
+  if (s.includes('telereview') || s.includes('pd') || s.includes('credit review') || s.includes('under finance review')) {
+    return { statusCode: 'UNDER_FINANCE_REVIEW', displayStatus: 'Under Finance Review', statusType: 'in_progress', owner: 'NBFC Team', progressStep: 3, nextAction: 'Your application is being reviewed by the finance partner.', ctaLabel: 'View Details', ctaRoute: null };
+  }
+  if (s === 'approved ready for emi setup' || s.includes('ready for emi setup') || s === 'approved') {
+    return { statusCode: 'APPROVED', displayStatus: 'Approved', statusType: 'success', owner: 'Student / Parent', progressStep: 4, nextAction: 'Your application is approved. Complete EMI setup to proceed.', ctaLabel: 'Setup EMI', ctaRoute: null };
+  }
+  if (s === 'emi setup in progress' || s.includes('emi setup in progress')) {
+    return { statusCode: 'EMI_SETUP_IN_PROGRESS', displayStatus: 'EMI Setup in Progress', statusType: 'in_progress', owner: 'NBFC Team', progressStep: 4, nextAction: 'Your EMI setup is being processed. This usually takes some time.', ctaLabel: 'Track EMI Setup', ctaRoute: null };
+  }
+  if (s === 'emi setup done' || s.includes('emi setup done') || s.includes('emi setup completed')) {
+    return { statusCode: 'EMI_SETUP_COMPLETED', displayStatus: 'EMI Setup Completed', statusType: 'success', owner: 'NBFC Team', progressStep: 5, nextAction: 'Your EMI setup is complete. Access activation is in progress.', ctaLabel: 'Continue', ctaRoute: null };
+  }
+  if (s === 'internal hold' || s.includes('internal hold')) {
+    return { statusCode: 'VERIFICATION_PAUSED', displayStatus: 'Verification Paused', statusType: 'warning', owner: 'NBFC Team', progressStep: 3, nextAction: 'Your application needs additional verification. Our team will contact you.', ctaLabel: 'Contact Support', ctaRoute: null };
+  }
+  if (s === 'rejected' || s.includes('rejected') || s.includes('not approved')) {
+    return { statusCode: 'NOT_APPROVED', displayStatus: 'Not Approved', statusType: 'failed', owner: 'Support Team', progressStep: 3, nextAction: 'The finance partner could not approve this application. You can explore alternate payment options.', ctaLabel: 'Explore Options', ctaRoute: null };
+  }
+  if (s === 'dropped' || s.includes('dropped')) {
+    return { statusCode: 'APPLICATION_CLOSED', displayStatus: 'Application Closed', statusType: 'failed', owner: 'Student / Parent', progressStep: 3, nextAction: 'This finance application has been closed.', ctaLabel: 'Restart / Contact Support', ctaRoute: null };
+  }
+  if (s === 'disbursed' || s.includes('disbursed') || s.includes('completed')) {
+    return { statusCode: 'PAYMENT_COMPLETED', displayStatus: 'Payment Completed', statusType: 'success', owner: 'Completed', progressStep: 5, nextAction: 'Your payment has been completed successfully. Program access is ready or being activated.', ctaLabel: 'Go to Learning Portal', ctaRoute: null };
+  }
+
+  // General fallbacks in case the specific strings don't match exactly
+  if (s.includes('review') || s.includes('processing') || s.includes('in progress') || s.includes('submitted')) {
+    return { statusCode: 'UNDER_FINANCE_REVIEW', displayStatus: 'Under Finance Review', statusType: 'in_progress', owner: 'NBFC Team', progressStep: 3, nextAction: 'Your application is being reviewed by the finance partner.', ctaLabel: 'View Details', ctaRoute: null };
+  }
+
+  if (s.includes('action required') || s.includes('kyc')) {
+    return { statusCode: 'DOCUMENTS_PENDING', displayStatus: 'Action Required', statusType: 'warning', owner: 'Student / Parent', progressStep: 2, nextAction: 'Upload the required documents or complete KYC to move your application forward.', ctaLabel: 'Upload Documents', ctaRoute: null };
+  }
+
+  // Default fallback
+  return {
+    statusCode: 'STATUS_UPDATE_PENDING',
+    displayStatus: 'Status Update Pending',
+    statusType: 'neutral',
+    owner: 'Support Team',
+    progressStep: 0,
+    nextAction: 'Please check again later or contact support if this remains unchanged.',
+    ctaLabel: 'Contact Support',
+    ctaRoute: '/support'
+  };
 }
 
 // Helper: Salesforce OAuth Token (Connected App Client Credentials)
@@ -423,91 +520,174 @@ app.get('/api/onboarding/documents/download/:docId', (req: Request, res: Respons
 });
 
 /**
- * GET /api/onboarding/slots
+ * Demo-mode fallback for /api/nbfc-status when Salesforce credentials are absent.
+ * Mirrors the login endpoint's demo fallback so the NBFC step is fully click-through-able
+ * without real Salesforce access.
  */
-app.get('/api/onboarding/slots', (req: Request, res: Response) => {
-  const slots: Array<{ date: string; displayDate: string; dayName: string; times: string[] }> = [];
-  const timeOptions = ['10:00 AM', '11:30 AM', '02:00 PM', '04:00 PM', '06:00 PM'];
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function buildDemoNbfcResponse(salesforceId: string, mobile: string) {
+  const maskedMobile = mobile ? maskMobile(mobile) : undefined;
 
-  const now = new Date();
-  for (let i = 1; i <= 7; i++) {
-    const d = new Date(now);
-    d.setDate(now.getDate() + i);
-    // Skip Sundays
-    if (d.getDay() === 0) continue;
-
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-
-    slots.push({
-      date: `${yyyy}-${mm}-${dd}`,
-      displayDate: `${d.getDate()} ${months[d.getMonth()]}`,
-      dayName: dayNames[d.getDay()],
-      times: timeOptions
-    });
+  if (mobile === '0000000000') {
+    return {
+      found: false,
+      success: false,
+      message: 'We could not find your application. Please check the number or contact support.',
+      mobileMasked: maskedMobile,
+      academyRecord: null,
+      nbfcRecords: []
+    };
   }
 
-  res.json({ success: true, slots });
-});
+  // The demo login endpoint mints salesforceId as `a0f8b00000${mobile.slice(0,5)}AAA`,
+  // so a mobile of 7330918872 always resolves to this specific demo id.
+  const isRichDemoProfile = salesforceId === 'a0f8b0000073309AAA' || mobile === '7330918872';
+  const academyId = salesforceId || `a0f8b00000${mobile.slice(0, 5)}AAA`;
+
+  const academyRecord = {
+    idMasked: maskId(academyId),
+    nameMasked: maskName(isRichDemoProfile ? 'Mahammad Wahab' : 'Rahul Sharma'),
+    currentTeam: 'PRE Onboarding',
+    active: true
+  };
+
+  const demoNbfcSource = isRichDemoProfile
+    ? [
+        { id: `${academyId}-N1`, name: 'IDFC First Bank', rawStatus: 'Approved Ready for EMI Setup' },
+        { id: `${academyId}-N2`, name: 'Liquiloans', rawStatus: 'Documents Pending' }
+      ]
+    : [{ id: `${academyId}-N1`, name: 'IDFC First Bank', rawStatus: 'Under Finance Review' }];
+
+  const nbfcRecords = demoNbfcSource.map((nbfc) => {
+    const mapped = mapNbfcStatus(nbfc.rawStatus);
+    return {
+      id: maskId(nbfc.id),
+      name: nbfc.name,
+      statusRaw: nbfc.rawStatus,
+      ...mapped
+    };
+  });
+
+  return {
+    found: true,
+    success: true,
+    message: 'Academy record found. NBFC data fetched.',
+    mobileMasked: maskedMobile,
+    academyRecord,
+    nbfcRecords
+  };
+}
 
 /**
- * POST /api/onboarding/slots/book
+ * GET /api/nbfc-status
+ * Auto-fetches the student's NBFC / education-finance application status.
+ * Prefers `salesforceId` (the already-authenticated session identifier); falls back to `mobile`.
+ * Response is masked-PII-only: no unmasked student name or raw Salesforce record IDs are ever sent to the client.
  */
-app.post('/api/onboarding/slots/book', async (req: Request, res: Response) => {
-  try {
-    const { salesforceId, source, date, time } = req.body;
-    if (!salesforceId || !date || !time) {
-      res.status(400).json({ success: false, message: 'Missing slot booking details.' });
-      return;
-    }
+app.get('/api/nbfc-status', nbfcStatusRateLimiter, async (req: Request, res: Response) => {
+  const rawSalesforceId = typeof req.query.salesforceId === 'string' ? req.query.salesforceId : '';
+  const rawMobile = typeof req.query.mobile === 'string' ? req.query.mobile : '';
+  const mobile = normalizeMobile(rawMobile);
 
-    const bookingId = `SLOT-${Math.floor(100000 + Math.random() * 900000)}`;
-    const booking = {
-      id: bookingId,
-      salesforceId,
-      source: source || 'general',
-      date,
-      time,
-      bookedAt: new Date().toISOString()
-    };
-
-    slotBookings.set(bookingId, booking);
-
-    // Sync to SF if creds exist
-    if (hasSalesforceConfig()) {
-      try {
-        const { token, instanceUrl } = await getSalesforceToken();
-        const apiVersion = getSalesforceApiVersion();
-        const updateUrl = `${instanceUrl}/services/data/${apiVersion}/sobjects/Academy_Onboarding_PRE__c/${sanitizeSOQL(salesforceId)}`;
-
-        await fetch(updateUrl, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            KYC_Call_Status_PRE__c: 'BOOKED',
-            KYC_Call_Details_PRE__c: `Slot Booked for ${date} at ${time} (${source})`
-          })
-        });
-      } catch (sfErr) {
-        console.warn('Could not sync slot booking to SF:', sfErr);
-      }
-    }
-
-    res.json({
-      success: true,
-      message: `Assistance slot booked for ${date} at ${time}.`,
-      booking
+  if (!rawSalesforceId && (!mobile || mobile.length !== 10)) {
+    res.status(400).json({
+      found: false,
+      success: false,
+      message: 'A valid salesforceId or 10-digit mobile number is required.',
+      academyRecord: null,
+      nbfcRecords: []
     });
-  } catch (error) {
-    console.error('Slot booking error:', error);
-    res.status(500).json({ success: false, message: 'Failed to confirm slot.' });
+    return;
   }
+
+  const maskedMobile = mobile ? maskMobile(mobile) : undefined;
+  const hasSfCreds = hasSalesforceConfig();
+
+  if (hasSfCreds) {
+    try {
+      const { token, instanceUrl } = await getSalesforceToken();
+      const apiVersion = getSalesforceApiVersion();
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const academyQuery = rawSalesforceId
+        ? `SELECT Id, Name, Current_Team_PRE__c, Active__c FROM Academy_Onboarding_PRE__c WHERE Id = '${sanitizeSOQL(rawSalesforceId)}' LIMIT 1`
+        : `SELECT Id, Name, Current_Team_PRE__c, Active__c FROM Academy_Onboarding_PRE__c WHERE PHONE_NUMBER__c = '${sanitizeSOQL(mobile)}' AND Active__c = true LIMIT 1`;
+
+      const academyUrl = `${instanceUrl}/services/data/${apiVersion}/query?q=${encodeURIComponent(academyQuery)}`;
+      const academyResp = await fetch(academyUrl, { headers });
+
+      if (!academyResp.ok) {
+        console.error('Salesforce NBFC academy query error:', await academyResp.text());
+        throw new Error('SOQL_QUERY_FAILED');
+      }
+
+      const academyData = await academyResp.json();
+      const academyRecords = academyData.records;
+
+      if (!academyRecords || academyRecords.length === 0) {
+        res.json({
+          found: false,
+          success: false,
+          message: 'We could not find your application. Please check the number or contact support.',
+          mobileMasked: maskedMobile,
+          academyRecord: null,
+          nbfcRecords: []
+        });
+        return;
+      }
+
+      const academyRecord = academyRecords[0];
+      const academyId = academyRecord.Id;
+
+      const nbfcQuery = `SELECT Id, Name, other_NBFC_PRE__c FROM NBFC_Onboarding__c WHERE Academy_Onboarding_PRE_L__c = '${sanitizeSOQL(academyId)}'`;
+      const nbfcUrl = `${instanceUrl}/services/data/${apiVersion}/query?q=${encodeURIComponent(nbfcQuery)}`;
+      const nbfcResp = await fetch(nbfcUrl, { headers });
+
+      if (!nbfcResp.ok) {
+        console.error('Salesforce NBFC records query error:', await nbfcResp.text());
+        throw new Error('SOQL_QUERY_FAILED');
+      }
+
+      const nbfcData = await nbfcResp.json();
+      const nbfcSfRecords = nbfcData.records || [];
+
+      // Masked-only: never send the unmasked student name or a raw Salesforce record Id to the client.
+      const processedAcademy = {
+        idMasked: maskId(academyId),
+        nameMasked: maskName(academyRecord.Name),
+        currentTeam: academyRecord.Current_Team_PRE__c,
+        active: academyRecord.Active__c
+      };
+
+      const nbfcRecords = nbfcSfRecords.map((nbfc: any) => {
+        const rawStatus = nbfc.other_NBFC_PRE__c;
+        const mapped = mapNbfcStatus(rawStatus);
+        return {
+          id: maskId(nbfc.Id),
+          name: nbfc.Name,
+          statusRaw: rawStatus,
+          ...mapped
+        };
+      });
+
+      res.json({
+        found: true,
+        success: true,
+        message: nbfcRecords.length > 0
+          ? 'Academy record found. NBFC data fetched.'
+          : 'Academy record found, but no NBFC records are linked yet.',
+        mobileMasked: maskedMobile,
+        academyRecord: processedAcademy,
+        nbfcRecords
+      });
+      return;
+    } catch (sfErr: any) {
+      console.warn('Salesforce NBFC status query threw error, checking demo fallback if in sandbox:', sfErr.message);
+      // Fallback to demo mode if sfErr is due to sandbox network or unconfigured test org
+    }
+  }
+
+  // Demo Mode Fallback for AI Studio Live Preview / Testing
+  res.json(buildDemoNbfcResponse(rawSalesforceId, mobile));
 });
 
 

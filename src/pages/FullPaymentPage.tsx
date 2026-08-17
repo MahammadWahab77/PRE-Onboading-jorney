@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, CheckCircle2, Calendar, RotateCcw, Banknote, Clock, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, CheckCircle2, RotateCcw, Banknote, ShieldCheck } from 'lucide-react';
 import { useOnboarding } from '../context/OnboardingContext';
 import { VoiceGuide } from '../components/VoiceGuide';
 import { JourneyProgress } from '../components/JourneyProgress';
@@ -7,10 +7,10 @@ import { JourneyProgress } from '../components/JourneyProgress';
 export const FullPaymentPage: React.FC = () => {
   const { state, navigate } = useOnboarding();
 
-  const voiceMsg = "You selected Full Payment. Please book a convenient slot. Our team will connect with you and help you complete the remaining payment and onboarding steps.";
+  const voiceMsg = "You selected Full Payment. Let's proceed to your KYC verification, the final step to confirm your enrollment.";
 
-  const handleBookSlot = () => {
-    navigate('/onboarding/slot-booking?source=full-payment');
+  const handleProceedToKyc = () => {
+    navigate('/onboarding/kyc');
   };
 
   const handleChangeOption = () => {
@@ -36,7 +36,7 @@ export const FullPaymentPage: React.FC = () => {
         </h1>
 
         <p className="text-[#5D5852] text-base sm:text-lg max-w-2xl mx-auto font-serif italic mb-8 leading-relaxed">
-          "Book a convenient slot with the NxtWave onboarding admissions team. They will connect with you on WhatsApp/phone to guide you through the remaining balance transfer and immediate batch confirmation."
+          "Proceed to your KYC video verification with the NxtWave onboarding admissions team to confirm your remaining balance transfer and complete your batch confirmation."
         </p>
 
         {/* Summary Card */}
@@ -85,11 +85,10 @@ export const FullPaymentPage: React.FC = () => {
         {/* CTAs */}
         <div className="max-w-md mx-auto space-y-4">
           <button
-            onClick={handleBookSlot}
+            onClick={handleProceedToKyc}
             className="w-full py-4 bg-[#0B4A99] hover:bg-[#093e80] text-white rounded-2xl font-bold text-lg transition-colors shadow-lg shadow-blue-900/15 flex items-center justify-center gap-3 cursor-pointer"
           >
-            <Calendar className="w-5 h-5 text-[#E8AF30]" />
-            <span>Book My Assistance Slot</span>
+            <span>Proceed to KYC Verification</span>
             <ArrowRight className="w-5 h-5" />
           </button>
 

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { OnboardingState, PaymentOption, SalesforceUser, CoApplicantDetails, BookedSlot } from '../types/onboarding';
+import { OnboardingState, PaymentOption, SalesforceUser, CoApplicantDetails } from '../types/onboarding';
 
 interface OnboardingContextType {
   state: OnboardingState;
@@ -10,8 +10,8 @@ interface OnboardingContextType {
   selectPaymentOption: (option: PaymentOption) => void;
   saveCoApplicant: (details: CoApplicantDetails) => Promise<boolean>;
   addDocumentUrl: (docKey: string, url: string) => void;
-  bookSlot: (source: string, date: string, time: string) => Promise<{ success: boolean; booking?: BookedSlot; message?: string }>;
   completeKycStep: () => void;
+  markNbfcStatusViewed: () => void;
   toggleMuteVoice: () => void;
   resetJourney: () => void;
 }
@@ -27,9 +27,8 @@ const DEFAULT_STATE: OnboardingState = {
   coApplicantDetails: null,
   documentsStatus: 'NOT_STARTED',
   uploadedDocuments: {},
-  slotStatus: 'NOT_BOOKED',
-  bookedSlot: null,
   kycStatus: 'PENDING',
+  nbfcStatusViewed: false,
   currentLevel: 1,
   mutedVoice: false,
 };
@@ -104,7 +103,15 @@ export const OnboardingProvider: React.FC<{ children: ReactNode }> = ({ children
       navigate('/onboarding/co-applicant');
       return;
     }
-  }, [currentRoute, state.salesforceId, state.selectedPaymentOption, state.coApplicantStatus]);
+
+    if (
+      currentRoute === '/onboarding/nbfc-status' &&
+      (state.kycStatus !== 'COMPLETED' || state.selectedPaymentOption !== 'NO_COST_EMI')
+    ) {
+      navigate('/onboarding/kyc');
+      return;
+    }
+  }, [currentRoute, state.salesforceId, state.selectedPaymentOption, state.coApplicantStatus, state.kycStatus]);
 
   const navigate = (route: string) => {
     // Stop any ongoing voice guidance when changing routes
@@ -189,37 +196,14 @@ export const OnboardingProvider: React.FC<{ children: ReactNode }> = ({ children
     setState((prev) => {
       const updated = { ...prev.uploadedDocuments, [docKey]: url };
       const docCount = Object.keys(updated).length;
+      const submitted = docCount >= 3;
       return {
         ...prev,
         uploadedDocuments: updated,
-        documentsStatus: docCount >= 3 ? 'SUBMITTED' : 'IN_PROGRESS',
-        currentLevel: Math.max(prev.currentLevel, 4),
+        documentsStatus: submitted ? 'SUBMITTED' : 'IN_PROGRESS',
+        currentLevel: Math.max(prev.currentLevel, submitted ? 5 : 4), // Level 5: All documents submitted
       };
     });
-  };
-
-  const bookSlot = async (source: string, date: string, time: string): Promise<{ success: boolean; booking?: BookedSlot; message?: string }> => {
-    try {
-      const res = await fetch('/api/onboarding/slots/book', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ salesforceId: state.salesforceId, source, date, time }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setState((prev) => ({
-          ...prev,
-          slotStatus: 'BOOKED',
-          bookedSlot: data.booking,
-          currentLevel: Math.max(prev.currentLevel, 5), // Level 5: Slot Booked
-        }));
-        return { success: true, booking: data.booking };
-      }
-      return { success: false, message: data.message || 'Could not confirm slot.' };
-    } catch (e) {
-      console.error('Slot booking error:', e);
-      return { success: false, message: 'Network connection error.' };
-    }
   };
 
   const completeKycStep = () => {
@@ -228,6 +212,10 @@ export const OnboardingProvider: React.FC<{ children: ReactNode }> = ({ children
       kycStatus: 'COMPLETED',
       currentLevel: 6, // Level 6: Final
     }));
+  };
+
+  const markNbfcStatusViewed = () => {
+    setState((prev) => ({ ...prev, nbfcStatusViewed: true }));
   };
 
   const toggleMuteVoice = () => {
@@ -255,8 +243,8 @@ export const OnboardingProvider: React.FC<{ children: ReactNode }> = ({ children
         selectPaymentOption,
         saveCoApplicant,
         addDocumentUrl,
-        bookSlot,
         completeKycStep,
+        markNbfcStatusViewed,
         toggleMuteVoice,
         resetJourney,
       }}

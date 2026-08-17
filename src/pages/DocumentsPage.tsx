@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Upload, FileText, CheckCircle2, AlertCircle, Calendar, ArrowRight, ShieldCheck, Lock, Trash2, Eye } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, Lock, HelpCircle } from 'lucide-react';
 import { useOnboarding } from '../context/OnboardingContext';
 import { VoiceGuide } from '../components/VoiceGuide';
 import { JourneyProgress } from '../components/JourneyProgress';
+import { SUPPORT_WHATSAPP_URL } from '../constants';
 
 interface DocDef {
   key: string;
@@ -28,7 +29,7 @@ export const DocumentsPage: React.FC = () => {
   const [uploadingMap, setUploadingMap] = useState<Record<string, boolean>>({});
   const [errorMap, setErrorMap] = useState<Record<string, string>>({});
 
-  const voiceMsg = "Please upload the required documents. You can upload Aadhaar, PAN, and income or bank documents. If you are not sure, you can book a slot for help.";
+  const voiceMsg = "Please upload the required documents. You can upload Aadhaar, PAN, and income or bank documents. If you are not sure, you can contact our support team for help.";
 
   const handleFileUpload = async (docKey: string, label: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -218,22 +219,23 @@ export const DocumentsPage: React.FC = () => {
         {/* Action Bottom CTAs */}
         <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-[#E5E2D9]">
           <button
-            onClick={() => navigate('/onboarding/slot-booking?source=no-cost-emi-documents')}
+            onClick={() => navigate('/onboarding/kyc')}
             disabled={!canContinue}
             className="flex-1 py-4 bg-[#0B4A99] hover:bg-[#093e80] text-white rounded-2xl font-bold text-base sm:text-lg transition-colors shadow-lg shadow-blue-900/15 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
           >
-            <span>Continue to Slot Booking</span>
+            <span>Continue to KYC Verification</span>
             <ArrowRight className="w-5 h-5" />
           </button>
 
-          <button
-            type="button"
-            onClick={() => navigate('/onboarding/slot-booking?source=no-cost-emi-documents')}
+          <a
+            href={SUPPORT_WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             className="py-4 px-6 bg-white border-2 border-[#0B4A99] text-[#0B4A99] hover:bg-blue-50 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
           >
-            <Calendar className="w-4 h-4" />
-            <span>Not Sure? Book Slot for Help</span>
-          </button>
+            <HelpCircle className="w-4 h-4" />
+            <span>Not Sure? Contact Support</span>
+          </a>
         </div>
       </div>
     </div>

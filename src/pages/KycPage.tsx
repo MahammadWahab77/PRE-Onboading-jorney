@@ -1,23 +1,58 @@
 import React from 'react';
-import { Video, CheckCircle2, Calendar, Clock, MessageSquare, RefreshCw, ShieldCheck, FileText, UserCheck, Sparkles, ArrowRight, HelpCircle } from 'lucide-react';
+import { Video, CheckCircle2, MessageSquare, PhoneCall, ShieldCheck, UserCheck, ArrowRight, PartyPopper } from 'lucide-react';
 import { useOnboarding } from '../context/OnboardingContext';
 import { VoiceGuide } from '../components/VoiceGuide';
 import { JourneyProgress } from '../components/JourneyProgress';
+import { SUPPORT_WHATSAPP_URL, SUPPORT_TEL_URL } from '../constants';
 
 export const KycPage: React.FC = () => {
-  const { state, navigate } = useOnboarding();
+  const { state, completeKycStep, navigate } = useOnboarding();
 
   const studentName = state.name ? state.name.split(' ')[0] : 'Student';
-  const hasBooking = Boolean(state.slotBookingDetails?.date);
-  const scheduledDate = state.slotBookingDetails?.date || new Date(Date.now() + 86400000).toISOString().split('T')[0];
-  const scheduledTime = state.slotBookingDetails?.time || '11:30 AM - 12:30 PM';
+  const isEmiPath = state.selectedPaymentOption === 'NO_COST_EMI';
+  const isJourneyComplete = state.kycStatus === 'COMPLETED' && !isEmiPath;
 
-  const voiceMsg = "Your verification call is scheduled. Please keep your original documents ready for the video call verification.";
+  const voiceMsg = isJourneyComplete
+    ? "Congratulations! Your onboarding journey is complete. Welcome to NxtWave."
+    : "Your verification call is scheduled. Please keep your original documents ready for the video call verification.";
 
-  const formatDateLabel = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-IN', { weekday: 'long', month: 'short', day: 'numeric' });
+  const handleCompleteKyc = () => {
+    completeKycStep();
+    if (isEmiPath) {
+      navigate('/onboarding/nbfc-status');
+    }
   };
+
+  if (isJourneyComplete) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-12 text-[#2D3A3A] select-none text-center">
+        <VoiceGuide text={voiceMsg} language={state.selectedLanguage} />
+
+        <div className="bg-white border-2 border-green-300 rounded-[2.5rem] p-8 sm:p-12 shadow-xl relative overflow-hidden">
+          <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+            <PartyPopper className="w-12 h-12" />
+          </div>
+
+          <span className="px-4 py-1.5 rounded-full bg-green-100 text-green-800 font-bold text-xs uppercase tracking-widest inline-block mb-3">
+            Onboarding Complete
+          </span>
+
+          <h1 className="text-3xl sm:text-4xl font-bold text-[#1A1A1A] mb-4 tracking-tight">
+            You're All Set, {studentName}!
+          </h1>
+
+          <p className="text-[#5D5852] text-base sm:text-lg max-w-lg mx-auto mb-8 leading-relaxed">
+            Your KYC verification is complete. Welcome to NxtWave — our admissions team will reach out with your batch and portal access details shortly.
+          </p>
+
+          <div className="bg-[#FAF9F6] border border-[#E5E2D9] rounded-2xl p-4 max-w-md mx-auto text-xs text-[#7A756D] flex items-center justify-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-[#0B4A99]" />
+            <span>Salesforce CRM Record ID: <strong className="font-mono text-[#1A1A1A]">{state.salesforceId || 'PRE-RECORD-001'}</strong></span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 text-[#2D3A3A] select-none">
@@ -27,7 +62,7 @@ export const KycPage: React.FC = () => {
       {/* Hero Header Card */}
       <div className="bg-gradient-to-br from-[#0B4A99] to-[#083670] text-white rounded-[2.5rem] p-8 sm:p-12 shadow-xl mb-8 relative overflow-hidden text-center">
         <div className="absolute -right-10 -top-10 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none" />
-        
+
         <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl flex items-center justify-center mx-auto mb-6 border border-white/20 shadow-lg">
           <Video className="w-10 h-10 text-[#E8AF30]" />
         </div>
@@ -40,30 +75,9 @@ export const KycPage: React.FC = () => {
           KYC Video Call Verification
         </h1>
 
-        <p className="text-blue-100 text-base sm:text-lg max-w-xl mx-auto leading-relaxed font-serif italic mb-8">
+        <p className="text-blue-100 text-base sm:text-lg max-w-xl mx-auto leading-relaxed font-serif italic">
           "Hello {studentName}, your onboarding file is under review in Salesforce. Our admissions team will conduct a quick 5-minute video call to verify your downpayment record."
         </p>
-
-        {/* Scheduled Window Tag */}
-        <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 sm:p-6 max-w-lg mx-auto inline-flex flex-col sm:flex-row items-center justify-around gap-4 w-full">
-          <div className="flex items-center gap-2.5 text-left">
-            <Calendar className="w-5 h-5 text-[#E8AF30] shrink-0" />
-            <div>
-              <p className="text-[10px] text-blue-200 uppercase tracking-wider font-bold">Verification Date</p>
-              <p className="text-sm font-bold text-white font-mono">{formatDateLabel(scheduledDate)}</p>
-            </div>
-          </div>
-
-          <div className="hidden sm:block w-px h-8 bg-white/20" />
-
-          <div className="flex items-center gap-2.5 text-left">
-            <Clock className="w-5 h-5 text-[#E8AF30] shrink-0" />
-            <div>
-              <p className="text-[10px] text-blue-200 uppercase tracking-wider font-bold">Time Window (IST)</p>
-              <p className="text-sm font-bold text-white font-mono">{scheduledTime}</p>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Preparation Checklist */}
@@ -114,7 +128,7 @@ export const KycPage: React.FC = () => {
       {/* Support & Action Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
         <a
-          href="https://wa.me/917330918872?text=Hi%20NxtWave%20Team,%20I%20am%20waiting%20for%20my%20KYC%20verification%20call."
+          href={SUPPORT_WHATSAPP_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="p-6 bg-white border-2 border-[#E5E2D9] hover:border-[#25D366] rounded-3xl transition-all shadow-2xs hover:shadow-md flex items-center justify-between group"
@@ -131,20 +145,32 @@ export const KycPage: React.FC = () => {
           <ArrowRight className="w-5 h-5 text-[#7A756D] group-hover:text-[#25D366] transition-colors" />
         </a>
 
-        <button
-          onClick={() => navigate('/onboarding/slot-booking?source=reschedule-kyc')}
-          className="p-6 bg-white border-2 border-[#E5E2D9] hover:border-[#0B4A99] rounded-3xl transition-all shadow-2xs hover:shadow-md flex items-center justify-between group cursor-pointer w-full"
+        <a
+          href={SUPPORT_TEL_URL}
+          className="p-6 bg-white border-2 border-[#E5E2D9] hover:border-[#0B4A99] rounded-3xl transition-all shadow-2xs hover:shadow-md flex items-center justify-between group"
         >
           <div className="flex items-center gap-4 text-left">
             <div className="w-12 h-12 bg-[#E8F0FE] text-[#0B4A99] rounded-2xl flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
-              <RefreshCw className="w-6 h-6" />
+              <PhoneCall className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-[#1A1A1A]">Reschedule Call Window</h3>
-              <p className="text-xs text-[#7A756D]">Pick another date or time slot</p>
+              <h3 className="text-base font-bold text-[#1A1A1A]">Contact Support</h3>
+              <p className="text-xs text-[#7A756D]">Need to reschedule? Call our team</p>
             </div>
           </div>
           <ArrowRight className="w-5 h-5 text-[#7A756D] group-hover:text-[#0B4A99] transition-colors" />
+        </a>
+      </div>
+
+      {/* Primary CTA */}
+      <div className="max-w-md mx-auto mb-8">
+        <button
+          onClick={handleCompleteKyc}
+          className="w-full py-4 bg-[#0B4A99] hover:bg-[#093e80] text-white rounded-2xl font-bold text-lg transition-colors shadow-lg shadow-blue-900/15 flex items-center justify-center gap-3 cursor-pointer"
+        >
+          <CheckCircle2 className="w-5 h-5" />
+          <span>I've Completed My KYC Verification</span>
+          <ArrowRight className="w-5 h-5" />
         </button>
       </div>
 
